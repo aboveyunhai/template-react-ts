@@ -1,15 +1,16 @@
 import { EventBus } from "../EventBus";
 import { Scene } from "phaser";
-import { SlimeNew } from "../SlimeNew";
+import { Slime } from "../soft-body-proc-anim-main/slime";
+import { createSeawheatBackground } from "../seawheat";
 
 export class Game extends Scene {
     camera: Phaser.Cameras.Scene2D.Camera;
     background: Phaser.GameObjects.Image;
+    seawheatBg?: Phaser.GameObjects.Image;
     gameText: Phaser.GameObjects.Text;
-    player!: SlimeNew;
-    // containerRect!: Phaser.Geom.Rectangle;
-    // containerGraphics!: Phaser.GameObjects.Graphics;
-    cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+    cursors: Phaser.Types.Input.Keyboard.CursorKeys;
+    slimeGraphics: Phaser.GameObjects.Graphics | undefined;
+    slime: Slime | undefined;
 
     constructor() {
         super("Game");
@@ -17,10 +18,13 @@ export class Game extends Scene {
 
     create() {
         this.camera = this.cameras.main;
-        this.camera.setBackgroundColor(0x000000);
+        this.camera.setBackgroundColor("#000000");
 
-        // this.background = this.add.image(512, 384, "background");
-        // this.background.setAlpha(0.5);
+        // Static pixel-art styled background (non-interactive)
+        this.seawheatBg = createSeawheatBackground(this, {
+            depth: -100,
+            alpha: 0.35,
+        });
 
         // this.gameText = this.add
         //     .text(512, 40, "Slime Soft Body Demo", {
@@ -34,25 +38,21 @@ export class Game extends Scene {
         //     .setOrigin(0.5)
         //     .setDepth(100);
 
-        // create player soft body (Matter.js)
-        this.player = new SlimeNew(this, 400, 300);
+        // Enable Matter world bounds so future physics bodies can collide with edges
+        this.matter.world.setBounds(0, 0, this.scale.width, this.scale.height);
 
-        // add a static ground at the bottom to keep player from free-falling
-        const groundY = 720; // near bottom of 768 height
-        const _ground = this.matter.add.rectangle(512, groundY, 1024, 96, {
-            isStatic: true,
-            friction: 0.8,
-        });
-        (_ground as any).__isHelper = true;
-        // optionally visualize ground
-        const g = this.add.graphics();
-        g.fillStyle(0x333333, 1);
-        g.fillRect(0, groundY - 48, 1024, 96);
+        this.slimeGraphics = this.add.graphics();
+        this.slime = new Slime(this, new Phaser.Math.Vector2(400, 300));
+
+        const circleGraphics = this.add.graphics();
+        circleGraphics.fillStyle(0x888888, 1);
+        circleGraphics.fillCircle(600, 400, 30);
+
+        // Add a matching Matter static circle so the soft-body points can
+        // collide against it using Matter.Query in Blob.ts
+        this.matter.add.circle(600, 400, 30, { isStatic: true });
 
         this.cursors = this.input.keyboard!.createCursorKeys();
-
-        // (Removed slime input + obstacles; using Matter soft body Player instead)
-
         EventBus.emit("current-scene-ready", this);
     }
 
@@ -61,6 +61,10 @@ export class Game extends Scene {
     }
 
     update(_time: number) {
-        this.player.update(this.cursors);
+        if (this.slime && this.slimeGraphics) {
+            this.slime.update();
+            this.slimeGraphics.clear();
+            this.slime.render(this.slimeGraphics);
+        }
     }
 }
